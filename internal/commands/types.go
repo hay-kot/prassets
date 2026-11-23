@@ -44,9 +44,13 @@ func newTypesCmd(flags *Flags) *cli.Command {
 				return writeJSON(c.Root().Writer, infos)
 			}
 			tw := tabwriter.NewWriter(c.Root().Writer, 0, 0, 2, ' ', 0)
-			_, _ = fmt.Fprintln(tw, "NAME\tKEY\tSOURCE\tUSAGE")
+			_, _ = fmt.Fprintln(tw, "NAME\tKEY\tSLUG\tSOURCE\tUSAGE")
 			for _, t := range infos {
-				_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", t.Name, t.Key, t.Source, t.Usage)
+				slug := "-"
+				if t.NeedSlug {
+					slug = "required"
+				}
+				_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", t.Name, t.Key, slug, t.Source, t.Usage)
 			}
 			return tw.Flush()
 		},

@@ -52,6 +52,8 @@ func NewApp(flags *Flags, info BuildInfo) *cli.Command {
 			newRmCmd(flags),
 			newTypesCmd(flags),
 			newConfigCmd(flags),
+			newOnboardCmd(flags),
+			newSchemaCmd(),
 			newVersionCmd(flags, info),
 			// +scaffold:command:register
 		},

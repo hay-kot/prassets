@@ -40,15 +40,20 @@ type session struct {
 	workTree string
 }
 
-func openSession(ctx context.Context, flags *Flags) (*session, error) {
-	global, err := flags.loadGlobal()
-	if err != nil {
-		return nil, err
-	}
+// checkout is the repo a command works on and the git work tree it runs in.
+type checkout struct {
+	repo gitctx.Repo
+	// workTree is the git work tree of the current directory, or "".
+	workTree string
+	// repoFilePath is where .prassets.yaml applies, or "" when the work tree
+	// is not the resolved repo (for example with --repo for another repo).
+	repoFilePath string
+}
 
+func detectCheckout(ctx context.Context, flags *Flags) (checkout, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
-		return nil, err
+		return checkout{}, err
 	}
 	workTree, treeErr := gitctx.TopLevel(ctx, cwd)
 	if treeErr != nil {
@@ -64,44 +69,64 @@ func openSession(ctx context.Context, flags *Flags) (*session, error) {
 		}
 	}
 
-	var repo gitctx.Repo
+	co := checkout{repo: gitctx.Repo{}, workTree: workTree, repoFilePath: ""}
 	switch {
 	case flags.Repo != "":
-		if repo, err = gitctx.ParseID(flags.Repo); err != nil {
-			return nil, &UsageError{Err: fmt.Errorf("--repo: %w", err)}
+		if co.repo, err = gitctx.ParseID(flags.Repo); err != nil {
+			return co, &UsageError{Err: fmt.Errorf("--repo: %w", err)}
 		}
 	case workTree == "":
-		return nil, fmt.Errorf("not in a git repository (%w); pass --repo host/owner/name", treeErr)
+		return co, fmt.Errorf("not in a git repository (%w); pass --repo host/owner/name", treeErr)
 	default:
 		u, err := gitctx.RemoteURL(ctx, workTree, flags.Remote)
 		if err != nil {
-			return nil, err
+			return co, err
 		}
-		if repo, err = gitctx.ParseRemoteURL(u); err != nil {
-			return nil, err
+		if co.repo, err = gitctx.ParseRemoteURL(u); err != nil {
+			return co, err
 		}
 	}
 
 	// .prassets.yaml belongs to the checkout, so only apply it when the
 	// checkout is the repo being resolved.
-	var repoFile *config.RepoFile
-	repoFilePath := ""
-	if workTree != "" && cwdRepo != nil && cwdRepo.ID() == repo.ID() {
-		p := filepath.Join(workTree, config.RepoFileName)
-		if repoFile, err = config.LoadRepoFile(p); err != nil {
-			return nil, err
-		}
-		if repoFile != nil {
-			repoFilePath = p
-		}
+	if workTree != "" && cwdRepo != nil && cwdRepo.ID() == co.repo.ID() {
+		co.repoFilePath = filepath.Join(workTree, config.RepoFileName)
 	}
+	return co, nil
+}
 
-	resolved, err := global.Resolve(repo, repoFile, repoFilePath)
+// loadRepoFile reads .prassets.yaml when it applies. It returns the file and
+// its path, or nil and "" when there is none.
+func (co checkout) loadRepoFile() (*config.RepoFile, string, error) {
+	if co.repoFilePath == "" {
+		return nil, "", nil
+	}
+	rf, err := config.LoadRepoFile(co.repoFilePath)
+	if err != nil || rf == nil {
+		return nil, "", err
+	}
+	return rf, co.repoFilePath, nil
+}
+
+func openSession(ctx context.Context, flags *Flags) (*session, error) {
+	global, err := flags.loadGlobal()
 	if err != nil {
 		return nil, err
 	}
-	log.Debug().Str("repo", repo.ID()).Str("entry", resolved.Entry).Str("store", resolved.StoreName).Msg("resolved repo")
-	return &session{flags: flags, global: global, resolved: resolved, workTree: workTree}, nil
+	co, err := detectCheckout(ctx, flags)
+	if err != nil {
+		return nil, err
+	}
+	repoFile, repoFilePath, err := co.loadRepoFile()
+	if err != nil {
+		return nil, err
+	}
+	resolved, err := global.Resolve(co.repo, repoFile, repoFilePath)
+	if err != nil {
+		return nil, err
+	}
+	log.Debug().Str("repo", co.repo.ID()).Str("entry", resolved.Entry).Str("store", resolved.StoreName).Msg("resolved repo")
+	return &session{flags: flags, global: global, resolved: resolved, workTree: co.workTree}, nil
 }
 
 // branch returns the slugified branch: --branch, else the checked-out branch.

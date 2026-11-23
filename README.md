@@ -115,6 +115,8 @@ Global flags: `--config`, `--repo host/owner/name`, `--remote` (default `origin`
 | `rm <key>...` | Delete objects. A bare file name resolves against the current branch's PR area. Keys that match none of the repo's types are refused. Asks on a TTY unless `--yes`. |
 | `types` | The repo's types: name, key template, source, usage. |
 | `config path\|init\|show\|check` | Find, create, inspect and verify the global config. |
+| `onboard` | Explain this repo's setup, the next step, and where each setting lives. Written for agents and new users. |
+| `schema [global\|repo]` | Print the JSON schema of the global config or of `.prassets.yaml`. |
 | `version` | Version and commit. |
 
 `get` and `rm` also take the URLs that `put` and `ls` print.
@@ -135,6 +137,12 @@ secret_key: '{{ cmd "sops decrypt --extract ''[\"r2\"][\"secret_key\"]'' ~/.conf
 ```
 
 `cmd` runs only for commands that talk to the bucket, and only for the store the current repo uses.
+
+## For agents
+
+Run `pra onboard` in a repo. It reports the state of the checkout (global config, repo id, entry, `.prassets.yaml`, types) and the next step. It also explains which settings belong in the global config and which in `.prassets.yaml`, and the rules agents follow: the global config is the user's, `--force` needs the user's consent, and `rm` does not prompt without a terminal. `pra --format json onboard` gives the same state as JSON, and `pra schema global` or `pra schema repo` prints the schema to check an edit against.
+
+To work on prassets itself, read [AGENTS.md](AGENTS.md).
 
 ## Expiring PR assets
 

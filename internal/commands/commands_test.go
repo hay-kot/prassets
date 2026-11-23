@@ -3,6 +3,7 @@ package commands
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -159,4 +160,51 @@ func TestRedact(t *testing.T) {
 	assert.Equal(t, "<redacted: literal>", redact("plain-secret"))
 	assert.Equal(t, "<redacted: from cmd, env>", redact(`{{ env "a" }}{{ cmd "x" }}`))
 	assert.Empty(t, redact(""))
+}
+
+func TestSchemaMatchesCommittedFiles(t *testing.T) {
+	for arg, file := range map[string]string{"": "schema.json", "global": "schema.json", "repo": "schema.repo.json"} {
+		args := []string{"schema"}
+		if arg != "" {
+			args = append(args, arg)
+		}
+		out, err := runApp(t, args...)
+		require.NoError(t, err)
+		want, err := os.ReadFile(filepath.Join("..", "..", file)) //nolint:gosec // fixed paths in the repo
+		require.NoError(t, err)
+		assert.Equal(t, string(want), out, file)
+	}
+
+	_, err := runApp(t, "schema", "bogus")
+	assert.True(t, IsUsageError(err))
+}
+
+func TestOnboard(t *testing.T) {
+	out, err := runApp(t, repoFlag, widgets, "onboard")
+	require.NoError(t, err)
+	assert.Contains(t, out, "Global entry: `repos.github.com/acme/widgets`")
+	assert.Contains(t, out, "`blog`: `blog/{{ .Slug }}/{{ .File }}` (from config repos.github.com/acme/widgets, needs --slug)")
+	assert.Contains(t, out, "The repo has its own entry.")
+	assert.Contains(t, out, "pra schema repo")
+
+	out, err = runApp(t, repoFlag, "github.com/someone/thing", "--format", "json", "onboard")
+	require.NoError(t, err)
+	var st onboardState
+	require.NoError(t, json.Unmarshal([]byte(out), &st))
+	assert.Equal(t, "ok", st.ConfigStatus)
+	assert.Equal(t, "default", st.Entry)
+	assert.Equal(t, "github/someone/thing/", st.Prefix)
+	assert.Contains(t, st.NextStep, "default entry")
+}
+
+func TestOnboardWithoutConfig(t *testing.T) {
+	var out bytes.Buffer
+	app := NewApp(&Flags{}, BuildInfo{Version: "", Commit: "", Date: ""})
+	app.Writer = &out
+	missing := filepath.Join(t.TempDir(), "none.yaml")
+	err := app.Run(context.Background(), []string{"pra", "--config", missing, repoFlag, widgets, "onboard"})
+	require.NoError(t, err, "onboard reports broken setups instead of failing")
+	assert.Contains(t, out.String(), "("+"missing)")
+	assert.Contains(t, out.String(), "pra config init")
+	assert.Contains(t, out.String(), "github.com/acme/widgets:")
 }

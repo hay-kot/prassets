@@ -137,11 +137,13 @@ Global flags: `--config`, `--repo`, `--remote`, `--branch`, `--log-level`, `--fo
 | `md` | `ls --format md`: Markdown for this branch's assets, ready to paste in a PR body. |
 | `get <key>` | Download one object. `-o/--dir`. |
 | `rm <key or file>...` | Delete objects. A bare file name resolves against the current branch's PR area. Keys that match none of the repo's types are refused. Asks on a TTY unless `--yes`. |
-| `types` | The repo's types: name, resolved key template, source, usage. |
+| `types` | The repo's types: name, resolved key template, whether it needs `--slug`, source, usage. |
 | `config path` | Print the global config path. |
 | `config init` | Write a commented starter config if none exists. |
 | `config show` | The resolved config for the current repo, secrets redacted. |
 | `config check` | Resolve the repo, store, templates and secrets, then HEAD the bucket. Reports each step; non-zero exit on any failure. |
+| `onboard` | For agents and new users: the state of this checkout (global config, repo id, entry, `.prassets.yaml`, types), the next step, where each setting belongs, and the rules agents follow. Never fails on missing or broken config; it reports it. `--format json` prints the state only. |
+| `schema [global\|repo]` | Print the JSON schema of the global config (default) or of `.prassets.yaml`. |
 | `version` | Version and commit. |
 
 ### Output formats
