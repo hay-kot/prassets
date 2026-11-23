@@ -73,13 +73,23 @@ func LoadVault(ctx context.Context, name string, spec VaultSpec) (*Vault, error)
 
 // ParseDocument parses a plaintext vault. An empty document is an empty vault.
 func ParseDocument(plain []byte) (map[string]any, error) {
-	var data map[string]any
-	if err := yaml.Unmarshal(plain, &data); err != nil {
-		// yaml errors quote only line numbers and types, never values.
+	// Syntax errors name only a line, but yaml.v3 type errors quote the value,
+	// which here is a secret. Parse to a node first and never return a decode
+	// error as is.
+	var doc yaml.Node
+	if err := yaml.Unmarshal(plain, &doc); err != nil {
 		return nil, fmt.Errorf("invalid YAML: %w", err)
 	}
-	if data == nil {
-		data = map[string]any{}
+	data := map[string]any{}
+	if len(doc.Content) == 0 {
+		return data, nil
+	}
+	root := doc.Content[0]
+	if root.Kind != yaml.MappingNode {
+		return nil, fmt.Errorf("line %d: the top level must be a map of keys", root.Line)
+	}
+	if err := root.Decode(&data); err != nil {
+		return nil, fmt.Errorf("line %d: a vault holds nested maps with string keys and string values", root.Line)
 	}
 	return data, nil
 }

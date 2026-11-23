@@ -88,10 +88,14 @@ func decodeStrict(data []byte, out any) error {
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
 	if err := dec.Decode(out); err != nil && !errors.Is(err, io.EOF) {
-		return err
+		return errors.New(quotedValue.ReplaceAllString(err.Error(), "`...`"))
 	}
 	return nil
 }
+
+// yaml.v3 type errors quote the offending value, which could be a literal
+// secret put in the wrong field, so errors keep only the line and type.
+var quotedValue = regexp.MustCompile("`[^`]*`")
 
 func validate(cfg *Config) error {
 	for _, name := range sortedKeys(cfg.Vaults) {

@@ -145,6 +145,10 @@ func TestKeys(t *testing.T) {
 
 	_, err = ParseDocument([]byte("- a\n- b\n"))
 	require.Error(t, err)
+
+	_, err = ParseDocument([]byte(secretValue + "\n"))
+	require.ErrorContains(t, err, "top level must be a map")
+	assert.NotContains(t, err.Error(), secretValue)
 }
 
 func TestEncryptAgeRoundTrip(t *testing.T) {

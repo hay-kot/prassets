@@ -85,6 +85,7 @@ func TestParseErrors(t *testing.T) {
 	}{
 		{name: "unknown top-level key", data: base + "log_level: debug\n", wantErr: "field log_level not found"},
 		{name: "unknown store key", data: base + "    acess_key: x\n", wantErr: "field acess_key not found"},
+		{name: "type error hides value", data: base + "    insecure: AKIA-SECRET\n", wantErr: "cannot unmarshal !!str `...` into bool"},
 		{name: "missing store", data: base + "default:\n  store: nope\n", wantErr: `store "nope" is not defined`},
 		{name: "missing vault", data: "stores:\n  s:\n    endpoint: e\n    bucket: b\n    public_url: https://x\n    access_key: '{{ vault \"v\" \"a\" }}'\n    secret_key: b\n", wantErr: `vault "v" is not defined`},
 		{name: "bad vault format", data: "vaults:\n  v:\n    path: x\n    format: gpg\n", wantErr: "format must be age or sops"},
