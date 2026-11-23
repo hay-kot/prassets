@@ -34,20 +34,14 @@ Location: `$XDG_CONFIG_HOME/prassets/config.yaml` (default `~/.config/prassets/c
 ```yaml
 # yaml-language-server: $schema=https://raw.githubusercontent.com/hay-kot/prassets/main/schema.json
 
-vaults:
-  personal:
-    path: ~/.config/prassets/secrets.age.yaml
-    format: age                    # or sops
-    identity: ~/.config/age/keys.txt
-
 stores:
   personal:
     endpoint: abc123.r2.cloudflarestorage.com   # host only, no scheme
     bucket: my-public
     region: auto                                # default "auto"
     public_url: https://assets.example.com      # base URL that serves the bucket
-    access_key: '{{ vault "personal" "r2.access_key" }}'
-    secret_key: '{{ vault "personal" "r2.secret_key" }}'
+    access_key: '{{ cmd "op read op://Personal/r2/access-key" }}'
+    secret_key: '{{ cmd "op read op://Personal/r2/secret-key" }}'
   work:
     endpoint: s3.us-east-1.amazonaws.com
     bucket: team-pr-assets
@@ -78,7 +72,6 @@ Secret fields (`access_key`, `secret_key`, `session_token`) are Go templates:
 |---|---|
 | `env "NAME"` | The env var. Unset or empty is an error. |
 | `cmd "..."` | Trimmed stdout of `sh -c`. A non-zero exit is an error with the command's stderr. |
-| `vault "name" "path"` | A value from a vault (see below). |
 | `file "path"` | Trimmed contents of a file (`~` expanded). |
 
 A value with no `{{ }}` is a literal. Secrets render only for commands that talk to the bucket, and only for the store the current repo uses. They never appear in logs, errors or `pra config show`.
@@ -102,7 +95,7 @@ types:
 
 Types merge in this order, later wins per type name: the built-in `pr` type (`pr/{{ .Branch }}/{{ .File }}`), then `.prassets.yaml`, then the global `repos.<id>` (or `default`) entry. `pra types` and `pra config show` print where each type came from.
 
-Key templates get `.Host`, `.Owner`, `.Repo`, `.Branch` (slugified), `.Slug` (from `--slug`) and `.File`, plus the functions `lower` and `slugify`. They never get `env`, `cmd`, `vault` or `file`, because `.prassets.yaml` is untrusted repo content. A template must use `.File` as its last segment. A type that uses `.Slug` needs `--slug`; one that does not refuses it.
+Key templates get `.Host`, `.Owner`, `.Repo`, `.Branch` (slugified), `.Slug` (from `--slug`) and `.File`, plus the functions `lower` and `slugify`. They never get `env`, `cmd` or `file`, because `.prassets.yaml` is untrusted repo content. A template must use `.File` as its last segment. A type that uses `.Slug` needs `--slug`; one that does not refuses it.
 
 ```sh
 pra put -t blog -s how-to-share hero.webp
@@ -122,35 +115,26 @@ Global flags: `--config`, `--repo host/owner/name`, `--remote` (default `origin`
 | `rm <key>...` | Delete objects. A bare file name resolves against the current branch's PR area. Keys that match none of the repo's types are refused. Asks on a TTY unless `--yes`. |
 | `types` | The repo's types: name, key template, source, usage. |
 | `config path\|init\|show\|check` | Find, create, inspect and verify the global config. |
-| `vault init\|edit\|keys <name>` | Manage age vaults (below). |
 | `version` | Version and commit. |
 
 `get` and `rm` also take the URLs that `put` and `ls` print.
 
 Safety rules kept from the recipinned tool: file names are normalized to `^[a-z0-9][a-z0-9._-]*$` (each rename is logged), every key is checked before the first upload, an existing key is refused unless `--force`, uploads get `Cache-Control: public, max-age=31536000, immutable`, and an unknown extension is an error.
 
-## Vaults
+## Secrets from encrypted files
 
-A vault is an encrypted YAML file of nested maps with string values. Templates read it with `vault "name" "dotted.path"`, and `pra` decrypts each vault at most once per run, only when a template asks for it.
-
-```sh
-age-keygen -o ~/.config/sops/age/keys.txt   # once, if you have no age identity
-pra vault init personal                     # creates an empty, armored age file
-pra vault edit personal                     # decrypts to a 0600 temp file and opens $EDITOR
-pra vault keys personal                     # lists dotted paths, never values
-```
-
-Inside the editor:
+`pra` has no secret store of its own. Keep credentials in a password manager or an encrypted file, and read them with `cmd`:
 
 ```yaml
-r2:
-  access_key: AKIA...
-  secret_key: s3cr3t...
+# 1Password
+secret_key: '{{ cmd "op read op://Personal/r2/secret-key" }}'
+# an age-encrypted file that holds only the value
+secret_key: '{{ cmd "age -d -i ~/.config/age/keys.txt ~/.config/prassets/r2-secret.age" }}'
+# one key of a sops-encrypted YAML file (inside a single-quoted YAML string, write '' for ')
+secret_key: '{{ cmd "sops decrypt --extract ''[\"r2\"][\"secret_key\"]'' ~/.config/prassets/secrets.sops.yaml" }}'
 ```
 
-`vault edit` refuses to save invalid YAML and re-encrypts to the recipient of your identity file. The identity is the vault's `identity` field, else `$PRASSETS_AGE_IDENTITY`, else `$SOPS_AGE_KEY_FILE`, else `~/.config/sops/age/keys.txt`.
-
-For `format: sops`, `pra` runs `sops decrypt`, so `sops` must be on your `PATH`. Edit sops vaults with `sops` itself.
+`cmd` runs only for commands that talk to the bucket, and only for the store the current repo uses.
 
 ## Expiring PR assets
 

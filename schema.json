@@ -5,13 +5,6 @@
   "$defs": {
     "Config": {
       "properties": {
-        "vaults": {
-          "additionalProperties": {
-            "$ref": "#/$defs/Vault"
-          },
-          "type": "object",
-          "description": "Encrypted YAML files that secret templates can read with vault. Decrypted only when a template calls vault for them, at most once per run."
-        },
         "stores": {
           "additionalProperties": {
             "$ref": "#/$defs/Store"
@@ -86,11 +79,11 @@
         },
         "access_key": {
           "type": "string",
-          "description": "Secret template: a literal, or a Go template with env, cmd, vault and file."
+          "description": "Secret template: a literal, or a Go template with env, cmd and file."
         },
         "secret_key": {
           "type": "string",
-          "description": "Secret template: a literal, or a Go template with env, cmd, vault and file."
+          "description": "Secret template: a literal, or a Go template with env, cmd and file."
         },
         "session_token": {
           "type": "string",
@@ -122,32 +115,6 @@
       "type": "object",
       "required": [
         "key"
-      ]
-    },
-    "Vault": {
-      "properties": {
-        "path": {
-          "type": "string",
-          "description": "Path to the encrypted file. ~ is expanded."
-        },
-        "format": {
-          "type": "string",
-          "enum": [
-            "age",
-            "sops"
-          ],
-          "description": "age: the whole file is age-encrypted. sops: a sops-encrypted YAML file with age recipients."
-        },
-        "identity": {
-          "type": "string",
-          "description": "age identity file. Default: $PRASSETS_AGE_IDENTITY, then $SOPS_AGE_KEY_FILE, then ~/.config/sops/age/keys.txt."
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "path",
-        "format"
       ]
     }
   },

@@ -98,17 +98,8 @@ func decodeStrict(data []byte, out any) error {
 var quotedValue = regexp.MustCompile("`[^`]*`")
 
 func validate(cfg *Config) error {
-	for _, name := range sortedKeys(cfg.Vaults) {
-		v := cfg.Vaults[name]
-		if v.Path == "" {
-			return fmt.Errorf("vaults.%s: path is required", name)
-		}
-		if v.Format != secrets.FormatAge && v.Format != secrets.FormatSops {
-			return fmt.Errorf("vaults.%s: format must be age or sops, not %q", name, v.Format)
-		}
-	}
 	for _, name := range sortedKeys(cfg.Stores) {
-		if err := validateStore(cfg, cfg.Stores[name]); err != nil {
+		if err := validateStore(cfg.Stores[name]); err != nil {
 			return fmt.Errorf("stores.%s: %w", name, err)
 		}
 	}
@@ -125,7 +116,7 @@ func validate(cfg *Config) error {
 	return nil
 }
 
-func validateStore(cfg *Config, s Store) error {
+func validateStore(s Store) error {
 	switch {
 	case s.Endpoint == "":
 		return errors.New("endpoint is required")
@@ -147,14 +138,8 @@ func validateStore(cfg *Config, s Store) error {
 			}
 			return fmt.Errorf("%s is required", f.Name)
 		}
-		t, err := secrets.Parse(f.Template)
-		if err != nil {
+		if _, err := secrets.Parse(f.Template); err != nil {
 			return fmt.Errorf("%s: %w", f.Name, err)
-		}
-		for _, ref := range t.VaultRefs() {
-			if _, ok := cfg.Vaults[ref]; !ok {
-				return fmt.Errorf("%s: vault %q is not defined under vaults", f.Name, ref)
-			}
 		}
 	}
 	return nil
@@ -278,7 +263,6 @@ type Resolved struct {
 	Entry          string
 	StoreName      string
 	Store          Store
-	Vaults         map[string]Vault
 	PrefixTemplate string
 	Prefix         string
 	RepoFilePath   string
@@ -371,7 +355,6 @@ func (g *Global) Resolve(repo gitctx.Repo, repoFile *RepoFile, repoFilePath stri
 		Entry:          entryName,
 		StoreName:      entry.Store,
 		Store:          g.Config.Stores[entry.Store],
-		Vaults:         g.Config.Vaults,
 		PrefixTemplate: entry.Prefix,
 		Prefix:         prefix,
 		RepoFilePath:   repoFilePath,
@@ -403,13 +386,4 @@ func (r *Resolved) Matcher() (*layout.Matcher, error) {
 // Data returns key template data for the repo.
 func (r *Resolved) Data(branch, slug, file string) layout.Data {
 	return layout.Data{Host: r.Repo.Host, Owner: r.Repo.Owner, Repo: r.Repo.Name, Branch: branch, Slug: slug, File: file}
-}
-
-// VaultSpecs converts the vault config for the secrets package.
-func VaultSpecs(vaults map[string]Vault) map[string]secrets.VaultSpec {
-	out := make(map[string]secrets.VaultSpec, len(vaults))
-	for name, v := range vaults {
-		out[name] = secrets.VaultSpec{Path: v.Path, Format: v.Format, Identity: v.Identity}
-	}
-	return out
 }

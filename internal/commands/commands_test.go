@@ -157,6 +157,6 @@ func TestRepoPrefix(t *testing.T) {
 
 func TestRedact(t *testing.T) {
 	assert.Equal(t, "<redacted: literal>", redact("plain-secret"))
-	assert.Equal(t, "<redacted: from cmd, vault>", redact(`{{ vault "a" "b" }}{{ cmd "x" }}`))
+	assert.Equal(t, "<redacted: from cmd, env>", redact(`{{ env "a" }}{{ cmd "x" }}`))
 	assert.Empty(t, redact(""))
 }

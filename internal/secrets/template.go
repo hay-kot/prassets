@@ -1,5 +1,4 @@
-// Package secrets renders the secret fields of a store and reads the
-// encrypted vault files they can refer to.
+// Package secrets renders the secret fields of a store.
 package secrets
 
 import (
@@ -18,10 +17,9 @@ import (
 
 // Function names a secret template can call.
 const (
-	FuncEnv   = "env"
-	FuncCmd   = "cmd"
-	FuncVault = "vault"
-	FuncFile  = "file"
+	FuncEnv  = "env"
+	FuncCmd  = "cmd"
+	FuncFile = "file"
 )
 
 // Template is a parsed secret template.
@@ -32,10 +30,9 @@ type Template struct {
 
 func stubFuncs() template.FuncMap {
 	return template.FuncMap{
-		FuncEnv:   func(string) (string, error) { return "", nil },
-		FuncCmd:   func(string) (string, error) { return "", nil },
-		FuncVault: func(string, string) (string, error) { return "", nil },
-		FuncFile:  func(string) (string, error) { return "", nil },
+		FuncEnv:  func(string) (string, error) { return "", nil },
+		FuncCmd:  func(string) (string, error) { return "", nil },
+		FuncFile: func(string) (string, error) { return "", nil },
 	}
 }
 
@@ -56,10 +53,10 @@ func (t *Template) IsLiteral() bool {
 }
 
 // Sources returns the secret functions the template calls, sorted, such as
-// ["env", "vault"]. It is safe to print.
+// ["cmd", "env"]. It is safe to print.
 func (t *Template) Sources() []string {
 	var out []string
-	t.walk(func(name string, _ []parse.Node) {
+	t.walk(func(name string) {
 		if !slices.Contains(out, name) {
 			out = append(out, name)
 		}
@@ -68,22 +65,7 @@ func (t *Template) Sources() []string {
 	return out
 }
 
-// VaultRefs returns the vault names the template passes to vault as string
-// literals, so config load can check that each one exists.
-func (t *Template) VaultRefs() []string {
-	var out []string
-	t.walk(func(name string, args []parse.Node) {
-		if name != FuncVault || len(args) == 0 {
-			return
-		}
-		if s, ok := args[0].(*parse.StringNode); ok && !slices.Contains(out, s.Text) {
-			out = append(out, s.Text)
-		}
-	})
-	return out
-}
-
-func (t *Template) walk(fn func(name string, args []parse.Node)) {
+func (t *Template) walk(fn func(name string)) {
 	var visit func(n parse.Node)
 	visit = func(n parse.Node) {
 		switch n := n.(type) {
@@ -106,7 +88,7 @@ func (t *Template) walk(fn func(name string, args []parse.Node)) {
 		case *parse.CommandNode:
 			if len(n.Args) > 0 {
 				if id, ok := n.Args[0].(*parse.IdentifierNode); ok {
-					fn(id.Ident, n.Args[1:])
+					fn(id.Ident)
 				}
 			}
 			for _, a := range n.Args {
@@ -134,20 +116,18 @@ func (t *Template) walk(fn func(name string, args []parse.Node)) {
 	}
 }
 
-// Resolver renders secret templates. It decrypts each vault at most once.
+// Resolver renders secret templates.
 type Resolver struct {
-	vaults map[string]VaultSpec
-	loaded map[string]*Vault
 	getenv func(string) string
 }
 
-// NewResolver returns a Resolver for the configured vaults.
-func NewResolver(vaults map[string]VaultSpec) *Resolver {
-	return &Resolver{vaults: vaults, loaded: map[string]*Vault{}, getenv: os.Getenv}
+// NewResolver returns a Resolver that reads the process environment.
+func NewResolver() *Resolver {
+	return &Resolver{getenv: os.Getenv}
 }
 
 // Render runs the template and returns the secret. Errors name the source
-// (env var, command, vault path, file) but never a value.
+// (env var, command, file) but never a value.
 func (r *Resolver) Render(ctx context.Context, t *Template) (string, error) {
 	if t.IsLiteral() {
 		return t.text, nil
@@ -176,13 +156,6 @@ func (r *Resolver) Render(ctx context.Context, t *Template) (string, error) {
 			}
 			return v, nil
 		},
-		FuncVault: func(name, path string) (string, error) {
-			v, err := r.vaultValue(ctx, name, path)
-			if err != nil {
-				return "", keep(err)
-			}
-			return v, nil
-		},
 		FuncFile: func(path string) (string, error) {
 			v, err := readFile(path)
 			if err != nil {
@@ -203,22 +176,6 @@ func (r *Resolver) Render(ctx context.Context, t *Template) (string, error) {
 		return "", errors.New("secret template failed to render")
 	}
 	return b.String(), nil
-}
-
-func (r *Resolver) vaultValue(ctx context.Context, name, path string) (string, error) {
-	v, ok := r.loaded[name]
-	if !ok {
-		spec, found := r.vaults[name]
-		if !found {
-			return "", fmt.Errorf("vault %q is not defined in the config", name)
-		}
-		var err error
-		if v, err = LoadVault(ctx, name, spec); err != nil {
-			return "", err
-		}
-		r.loaded[name] = v
-	}
-	return v.Lookup(path)
 }
 
 func runCommand(ctx context.Context, command string) (string, error) {

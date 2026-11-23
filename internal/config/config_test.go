@@ -15,11 +15,6 @@ import (
 var update = flag.Bool("update", false, "rewrite the committed JSON schemas")
 
 const specConfig = `
-vaults:
-  personal:
-    path: ~/.config/prassets/secrets.age.yaml
-    format: age
-    identity: ~/.config/age/keys.txt
 stores:
   personal:
     endpoint: abc123.r2.cloudflarestorage.com
@@ -27,8 +22,8 @@ stores:
     region: auto
     public_url: https://assets.example.com
     insecure: false
-    access_key: '{{ vault "personal" "r2.access_key" }}'
-    secret_key: '{{ vault "personal" "r2.secret_key" }}'
+    access_key: '{{ env "R2_ACCESS_KEY" }}'
+    secret_key: '{{ cmd "op read op://Work/pr-assets/secret" }}'
   work:
     endpoint: s3.us-east-1.amazonaws.com
     bucket: team-pr-assets
@@ -87,8 +82,8 @@ func TestParseErrors(t *testing.T) {
 		{name: "unknown store key", data: base + "    acess_key: x\n", wantErr: "field acess_key not found"},
 		{name: "type error hides value", data: base + "    insecure: AKIA-SECRET\n", wantErr: "cannot unmarshal !!str `...` into bool"},
 		{name: "missing store", data: base + "default:\n  store: nope\n", wantErr: `store "nope" is not defined`},
-		{name: "missing vault", data: "stores:\n  s:\n    endpoint: e\n    bucket: b\n    public_url: https://x\n    access_key: '{{ vault \"v\" \"a\" }}'\n    secret_key: b\n", wantErr: `vault "v" is not defined`},
-		{name: "bad vault format", data: "vaults:\n  v:\n    path: x\n    format: gpg\n", wantErr: "format must be age or sops"},
+		{name: "vaults removed", data: "vaults:\n  v:\n    path: x\n", wantErr: "field vaults not found"},
+		{name: "vault func removed", data: "stores:\n  s:\n    endpoint: e\n    bucket: b\n    public_url: https://x\n    access_key: '{{ vault \"v\" \"a\" }}'\n    secret_key: b\n", wantErr: "invalid secret template"},
 		{name: "endpoint scheme", data: "stores:\n  s:\n    endpoint: https://e\n    bucket: b\n    public_url: https://x\n    access_key: a\n    secret_key: b\n", wantErr: "no scheme"},
 		{name: "bad public url", data: "stores:\n  s:\n    endpoint: e\n    bucket: b\n    public_url: assets.example.com\n    access_key: a\n    secret_key: b\n", wantErr: "public_url"},
 		{name: "missing secret", data: "stores:\n  s:\n    endpoint: e\n    bucket: b\n    public_url: https://x\n    access_key: a\n", wantErr: "secret_key is required"},

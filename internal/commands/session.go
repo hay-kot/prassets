@@ -144,7 +144,7 @@ func (s *session) url(key string) string {
 
 // renderSecrets renders the credentials of the repo's store only.
 func renderSecrets(ctx context.Context, r *config.Resolved) (map[string]string, error) {
-	resolver := secrets.NewResolver(config.VaultSpecs(r.Vaults))
+	resolver := secrets.NewResolver()
 	out := map[string]string{}
 	for _, f := range r.Store.SecretFields() {
 		if f.Template == "" {

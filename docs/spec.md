@@ -6,7 +6,7 @@
 
 - One global config that maps repos to buckets. A new repo needs a few lines of YAML, not a new tool.
 - `pra put shot.png` in any checkout uploads to that repo's PR area for the current branch and prints the URL.
-- Secrets come from env vars, commands, or age-encrypted vault files, never from plain text in the config.
+- Secrets come from env vars, commands or files, never from plain text in the config. Encrypted storage (a password manager, age, sops) stays with the user, who reads it through `cmd`.
 - A repo can commit `.prassets.yaml` to share its key layout with collaborators.
 - Keep the recipinned safety rules: a fixed key layout, no silent overwrites, immutable cache headers, and keys outside the layout are read-only.
 - Agent-friendly: stdout carries only results (URLs, Markdown or JSON), logs go to stderr, errors are specific.
@@ -25,16 +25,6 @@ Location: `$XDG_CONFIG_HOME/prassets/config.yaml` (default `~/.config/prassets/c
 ```yaml
 # yaml-language-server: $schema=https://raw.githubusercontent.com/hay-kot/prassets/main/schema.json
 
-# Encrypted YAML files that secrets can read from. Decrypted lazily, only
-# when a template calls vault for them, and at most once per run.
-vaults:
-  personal:
-    path: ~/.config/prassets/secrets.age.yaml
-    format: age          # age: whole file encrypted with age; sops: a sops-encrypted YAML with age recipients
-    # Optional. Default: $PRASSETS_AGE_IDENTITY, then $SOPS_AGE_KEY_FILE,
-    # then ~/.config/sops/age/keys.txt.
-    identity: ~/.config/age/keys.txt
-
 # Named buckets. Several repos can share one store.
 stores:
   personal:
@@ -44,8 +34,8 @@ stores:
     public_url: https://assets.example.com      # base URL that serves the bucket
     insecure: false                             # http, for a local MinIO
     # Secret fields are Go templates. A value with no {{ }} is a literal.
-    access_key: '{{ vault "personal" "r2.access_key" }}'
-    secret_key: '{{ vault "personal" "r2.secret_key" }}'
+    access_key: '{{ cmd "op read op://Personal/r2/access-key" }}'
+    secret_key: '{{ cmd "age -d -i ~/.config/age/keys.txt ~/.config/prassets/r2-secret.age" }}'
   work:
     endpoint: s3.us-east-1.amazonaws.com
     bucket: team-pr-assets
@@ -71,22 +61,6 @@ repos:
     store: work
 ```
 
-### Vault files
-
-A vault is a YAML document of nested maps with string leaves:
-
-```yaml
-r2:
-  access_key: AKIA...
-  secret_key: s3cr3t...
-```
-
-- `format: age`: the whole file is age-encrypted (armored or binary). Decrypted with `filippo.io/age` and the identity file.
-- `format: sops`: a sops file with age recipients, decrypted with `github.com/getsops/sops/v3/decrypt`. If that dependency is too heavy, shelling out to `sops decrypt` is an acceptable fallback; record the choice in the commit.
-- `vault "<name>" "<dotted.path>"` returns the string at that path. A missing vault, missing key or non-string value is an error that names the vault, path and file, never the value.
-- `pra vault edit <name>` (age format only) decrypts to a 0600 temp file, opens `$EDITOR`, checks the result is valid YAML, and re-encrypts to the identity's recipient. `pra vault init <name>` creates an empty one. sops users edit with `sops`.
-- `pra vault keys <name>` lists the dotted paths, never the values.
-
 ### Secret templates
 
 Secret fields (`access_key`, `secret_key`, and `session_token` if present) are Go `text/template`s with these functions:
@@ -95,7 +69,6 @@ Secret fields (`access_key`, `secret_key`, and `session_token` if present) are G
 |---|---|
 | `env "NAME"` | The env var; an unset or empty var is an error. |
 | `cmd "..."` | Trimmed stdout of `sh -c`; a non-zero exit is an error with the command's stderr. |
-| `vault "name" "path"` | A value from a vault (above). |
 | `file "path"` | Trimmed contents of a file (`~` expanded). |
 
 Secrets render only for commands that talk to the bucket, and only for the store the current repo uses. Rendered values never appear in logs or `config show`.
@@ -123,7 +96,7 @@ The global prefix is always prepended, so a repo file cannot write outside the a
 
 ## Key templates
 
-Key templates are Go `text/template`s. They get the data below and only the pure functions `lower` and `slugify`. They never get `env`, `cmd`, `vault` or `file`, because `.prassets.yaml` comes from the repo and is untrusted.
+Key templates are Go `text/template`s. They get the data below and only the pure functions `lower` and `slugify`. They never get `env`, `cmd` or `file`, because `.prassets.yaml` comes from the repo and is untrusted.
 
 | Field | Value |
 |---|---|
@@ -146,7 +119,7 @@ Rules:
 
 - Repo id: `git remote get-url origin`, normalized from SSH or HTTPS to `host/owner/name` (lower case, no `.git`). `--repo` overrides it; `--remote` picks another remote.
 - Entry: `repos[<id>]`, else `default`, else the error `no config for repo github.com/x/y; add it under repos: in <path>`.
-- Validation at load: strict decode (unknown keys are errors) for both files, every referenced store and vault exists, every template parses.
+- Validation at load: strict decode (unknown keys are errors) for both files, every referenced store exists, every template parses.
 - JSON Schemas (`schema.json` for the global file, `schema.repo.json` for the repo file) are generated from the Go types and committed. A test fails when they drift.
 
 ## File names
@@ -169,7 +142,6 @@ Global flags: `--config`, `--repo`, `--remote`, `--branch`, `--log-level`, `--fo
 | `config init` | Write a commented starter config if none exists. |
 | `config show` | The resolved config for the current repo, secrets redacted. |
 | `config check` | Resolve the repo, store, templates and secrets, then HEAD the bucket. Reports each step; non-zero exit on any failure. |
-| `vault init <name>` / `vault edit <name>` / `vault keys <name>` | See Vault files. |
 | `version` | Version and commit. |
 
 ### Output formats
@@ -192,9 +164,9 @@ Global flags: `--config`, `--repo`, `--remote`, `--branch`, `--log-level`, `--fo
 
 ## Implementation notes
 
-- Go, urfave/cli v3, minio-go v7, a YAML library with strict decode, `filippo.io/age`, zerolog to stderr.
-- Packages: `internal/config` (load, merge, validate, schema), `internal/layout` (key templates, key building, writable check, name normalization), `internal/secrets` (secret templates, vaults), `internal/store` (S3 put, list, get, delete, exists), `internal/gitctx` (remote and branch), `internal/commands`.
-- `layout`, `config` and `secrets` are pure apart from file reads and get table tests; port the cases from recipinned's `layout_test.go`. Vault tests generate an age identity in a temp dir.
+- Go, urfave/cli v3, minio-go v7, a YAML library with strict decode, zerolog to stderr.
+- Packages: `internal/config` (load, merge, validate, schema), `internal/layout` (key templates, key building, writable check, name normalization), `internal/secrets` (secret templates), `internal/store` (S3 put, list, get, delete, exists), `internal/gitctx` (remote and branch), `internal/commands`.
+- `layout`, `config` and `secrets` are pure apart from file reads and get table tests; port the cases from recipinned's `layout_test.go`.
 - `store` gets an integration test against MinIO (the scaffold's Docker integration test setup), skipped without Docker. It covers put, the overwrite refusal, ls, get and rm end to end.
 - GoReleaser builds the `pra` binary and publishes to a Homebrew tap.
 

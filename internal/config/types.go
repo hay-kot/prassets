@@ -4,17 +4,9 @@ package config
 
 // Config is the global config file.
 type Config struct {
-	Vaults  map[string]Vault `yaml:"vaults,omitempty"  jsonschema_description:"Encrypted YAML files that secret templates can read with vault. Decrypted only when a template calls vault for them, at most once per run."`
 	Stores  map[string]Store `yaml:"stores,omitempty"  jsonschema_description:"Named S3-compatible buckets. Several repos can share one store."`
 	Default *Entry           `yaml:"default,omitempty" jsonschema_description:"Used for any repo that has no entry under repos. Omit it to make unknown repos an error."`
 	Repos   map[string]Entry `yaml:"repos,omitempty"   jsonschema_description:"Keyed by repo id: host/owner/name, from the origin remote."`
-}
-
-// Vault is an encrypted YAML file of nested maps with string leaves.
-type Vault struct {
-	Path     string `yaml:"path"               jsonschema:"required"                                                                                                                   jsonschema_description:"Path to the encrypted file. ~ is expanded."`
-	Format   string `yaml:"format"             jsonschema:"required,enum=age,enum=sops"                                                                                                jsonschema_description:"age: the whole file is age-encrypted. sops: a sops-encrypted YAML file with age recipients."`
-	Identity string `yaml:"identity,omitempty" jsonschema_description:"age identity file. Default: $PRASSETS_AGE_IDENTITY, then $SOPS_AGE_KEY_FILE, then ~/.config/sops/age/keys.txt."`
 }
 
 // Store is an S3-compatible bucket. The credential fields are secret
@@ -25,8 +17,8 @@ type Store struct {
 	Region       string `yaml:"region,omitempty"        jsonschema_description:"Bucket region. Default: auto."`
 	PublicURL    string `yaml:"public_url"              jsonschema:"required"                                                        jsonschema_description:"Base URL that serves the bucket."`
 	Insecure     bool   `yaml:"insecure,omitempty"      jsonschema_description:"Use http instead of https, for a local MinIO."`
-	AccessKey    string `yaml:"access_key"              jsonschema:"required"                                                        jsonschema_description:"Secret template: a literal, or a Go template with env, cmd, vault and file."`
-	SecretKey    string `yaml:"secret_key"              jsonschema:"required"                                                        jsonschema_description:"Secret template: a literal, or a Go template with env, cmd, vault and file."`
+	AccessKey    string `yaml:"access_key"              jsonschema:"required"                                                        jsonschema_description:"Secret template: a literal, or a Go template with env, cmd and file."`
+	SecretKey    string `yaml:"secret_key"              jsonschema:"required"                                                        jsonschema_description:"Secret template: a literal, or a Go template with env, cmd and file."`
 	SessionToken string `yaml:"session_token,omitempty" jsonschema_description:"Optional secret template for temporary credentials."`
 }
 
