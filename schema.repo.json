@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/hay-kot/prassets/main/schema.repo.json",
+  "$ref": "#/$defs/RepoFile",
+  "$defs": {
+    "RepoFile": {
+      "properties": {
+        "pr": {
+          "$ref": "#/$defs/TypeDef",
+          "description": "Overrides the key layout of the pr type."
+        },
+        "types": {
+          "additionalProperties": {
+            "$ref": "#/$defs/TypeDef"
+          },
+          "type": "object",
+          "description": "Asset types for this repo."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "TypeDef": {
+      "properties": {
+        "key": {
+          "type": "string",
+          "description": "Key template. Fields: .Host .Owner .Repo .Branch .Slug .File. Functions: lower, slugify. Must reference .File."
+        },
+        "usage": {
+          "type": "string",
+          "description": "What the type is for, shown by pra types."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "key"
+      ]
+    }
+  },
+  "title": "prassets repo config (.prassets.yaml)"
+}

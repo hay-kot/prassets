@@ -13,7 +13,6 @@ import (
 	"github.com/urfave/cli/v3"
 
 	"github.com/hay-kot/prassets/internal/commands"
-	"github.com/hay-kot/prassets/internal/config"
 )
 
 var (
@@ -98,19 +97,6 @@ func run() int {
 			},
 		},
 		Before: func(ctx context.Context, c *cli.Command) (context.Context, error) {
-			cfg, err := func() (config.Config, error) {
-				if flags.ConfigFile != "" {
-					return config.ReadFrom(flags.ConfigFile)
-				}
-				return config.Read()
-			}()
-			if err != nil {
-				return ctx, fmt.Errorf("loading config: %w", err)
-			}
-
-			if !c.IsSet("log-level") && cfg.LogLevel != "" {
-				flags.LogLevel = cfg.LogLevel
-			}
 			if err := setupLogger(flags.LogLevel, flags.NoColor); err != nil {
 				return ctx, err
 			}
