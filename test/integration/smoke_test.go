@@ -8,34 +8,34 @@ import (
 )
 
 func TestSmokeHelp(t *testing.T) {
-	h := NewHarness(t)
-	out, err := h.Run("help")
-	if err != nil {
-		t.Fatalf("help command failed: %v\noutput: %s", err, out)
-	}
-	if !strings.Contains(out, "prassets") {
-		t.Fatalf("expected help output to mention prassets, got:\n%s", out)
+	r := NewHarness(t).Run("--help")
+	if r.ExitCode != 0 || !strings.Contains(r.Stdout, "pra") {
+		t.Fatalf("help: exit %d\n%s%s", r.ExitCode, r.Stdout, r.Stderr)
 	}
 }
 
 func TestSmokeVersion(t *testing.T) {
-	h := NewHarness(t)
-	out, err := h.Run("--version")
-	if err != nil {
-		t.Fatalf("version command failed: %v\noutput: %s", err, out)
-	}
-	if strings.TrimSpace(out) == "" {
-		t.Fatal("expected version output, got empty string")
+	r := NewHarness(t).Run("version")
+	if r.ExitCode != 0 || !strings.HasPrefix(r.Stdout, "pra ") {
+		t.Fatalf("version: exit %d\n%s%s", r.ExitCode, r.Stdout, r.Stderr)
 	}
 }
 
-func TestSmokeCommand(t *testing.T) {
-	h := NewHarness(t)
-	out, err := h.Run("put")
-	if err != nil {
-		t.Fatalf("command failed: %v\noutput: %s", err, out)
+func TestSmokeUsageExitCode(t *testing.T) {
+	for _, args := range [][]string{{"bogus"}, {"put"}, {"--format", "xml", "version"}} {
+		if r := NewHarness(t).Run(args...); r.ExitCode != 2 {
+			t.Fatalf("%v: want exit 2, got %d\n%s", args, r.ExitCode, r.Stderr)
+		}
 	}
-	if !strings.Contains(out, "Hello World!") {
-		t.Fatalf("expected command output to contain Hello World!, got:\n%s", out)
+}
+
+func TestSmokeConfigInit(t *testing.T) {
+	h := NewHarness(t)
+	r := h.Run("config", "init")
+	if r.ExitCode != 0 {
+		t.Fatalf("config init: %s", r.Stderr)
+	}
+	if r := h.Run("config", "init"); r.ExitCode != 1 || !strings.Contains(r.Stderr, "already exists") {
+		t.Fatalf("second config init: exit %d\n%s", r.ExitCode, r.Stderr)
 	}
 }

@@ -102,6 +102,12 @@ linters:
   exclusions:
     generated: lax
     warn-unused: true
+    rules:
+      # The integration tests run the built binary, git and docker with
+      # test-controlled arguments.
+      - path: test/integration/
+        linters:
+          - gosec
 issues:
   fix: false
 formatters:
