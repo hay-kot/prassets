@@ -1,8 +1,8 @@
 [tools]
-go = "latest"
-golangci-lint = "latest"
-goreleaser = "latest"
-"github:gotestyourself/gotestsum" = "latest"
+go = "1.27.4"
+golangci-lint = "2.15.0"
+goreleaser = "2.20.2"
+"github:gotestyourself/gotestsum" = "1.13.0"
 
 [env]
 PRASSETS_LOG_LEVEL = "debug"
