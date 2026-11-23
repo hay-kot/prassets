@@ -10,7 +10,6 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"github.com/urfave/cli/v3"
 
 	"github.com/hay-kot/prassets/internal/commands"
 )
@@ -22,7 +21,7 @@ var (
 	date    = "now"
 )
 
-func build() string {
+func buildInfo() commands.BuildInfo {
 	if version == "dev" {
 		if info, ok := debug.ReadBuildInfo(); ok {
 			version = info.Main.Version
@@ -41,19 +40,7 @@ func build() string {
 	if len(commit) > 7 {
 		short = commit[:7]
 	}
-
-	return fmt.Sprintf("%s (%s) %s", version, short, date)
-}
-
-func setupLogger(level string, noColor bool) error {
-	parsedLevel, err := zerolog.ParseLevel(level)
-	if err != nil {
-		return fmt.Errorf("failed to parse log level: %w", err)
-	}
-
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, NoColor: noColor}).Level(parsedLevel)
-
-	return nil
+	return commands.BuildInfo{Version: version, Commit: short, Date: date}
 }
 
 func main() {
@@ -61,58 +48,10 @@ func main() {
 }
 
 func run() int {
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+	log.Logger = zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).With().Timestamp().Logger()
 
 	flags := &commands.Flags{}
-
-	app := &cli.Command{
-		Name:                  "prassets",
-		Usage:                 `Upload PR screenshots and other public assets to an S3-compatible bucket and print stable URLs`,
-		Version:               build(),
-		EnableShellCompletion: true,
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:        "log-level",
-				Usage:       "log level (debug, info, warn, error, fatal, panic)",
-				Sources:     cli.EnvVars("LOG_LEVEL"),
-				Value:       "info",
-				Destination: &flags.LogLevel,
-			},
-			&cli.BoolFlag{
-				Name:        "no-color",
-				Usage:       "disable colored output",
-				Sources:     cli.EnvVars("NO_COLOR"),
-				Destination: &flags.NoColor,
-			},
-			&cli.StringFlag{
-				Name:        "config",
-				Usage:       "path to config file",
-				Sources:     cli.EnvVars("CONFIG_FILE"),
-				Destination: &flags.ConfigFile,
-			},
-			&cli.BoolFlag{
-				Name:        "json",
-				Usage:       "output in JSON format",
-				Destination: &flags.JSON,
-			},
-		},
-		Before: func(ctx context.Context, c *cli.Command) (context.Context, error) {
-			if err := setupLogger(flags.LogLevel, flags.NoColor); err != nil {
-				return ctx, err
-			}
-
-			return ctx, nil
-		},
-	}
-	app = commands.NewPutCmd(flags).Register(app)
-	app = commands.NewLsCmd(flags).Register(app)
-	app = commands.NewMdCmd(flags).Register(app)
-	app = commands.NewGetCmd(flags).Register(app)
-	app = commands.NewRmCmd(flags).Register(app)
-	app = commands.NewTypesCmd(flags).Register(app)
-	app = commands.NewConfigCmd(flags).Register(app)
-	app = commands.NewVaultCmd(flags).Register(app)
-	// +scaffold:command:register
+	app := commands.NewApp(flags, buildInfo())
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -131,6 +70,9 @@ func run() int {
 			colorRed, colorReset, colorGray, err.Error(), colorReset,
 			colorRed, colorReset,
 		)
+		if commands.IsUsageError(err) {
+			return 2
+		}
 		return 1
 	}
 

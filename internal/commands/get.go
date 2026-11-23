@@ -2,47 +2,66 @@ package commands
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
+	"path"
+	"path/filepath"
 
-	"github.com/rs/zerolog/log"
 	"github.com/urfave/cli/v3"
 )
 
-// GetCmd implements the get command.
-type GetCmd struct {
-	flags *Flags
-}
-
-// NewGetCmd creates a new get command.
-func NewGetCmd(flags *Flags) *GetCmd {
-	return &GetCmd{flags: flags}
-}
-
-// Register adds the get command to the application.
-func (cmd *GetCmd) Register(app *cli.Command) *cli.Command {
-	app.Commands = append(app.Commands, &cli.Command{
-		Name:  "get",
-		Usage: "get command",
+func newGetCmd(flags *Flags) *cli.Command {
+	return &cli.Command{
+		Name:      "get",
+		Usage:     "download one object and print the local path",
+		ArgsUsage: "<key, URL or file name>",
 		Flags: []cli.Flag{
-			// Add command-specific flags here
+			&cli.StringFlag{Name: "dir", Aliases: []string{"o"}, Usage: "directory to save into", Value: "."},
 		},
-		Action: cmd.run,
-	})
+		Action: func(ctx context.Context, c *cli.Command) error {
+			if c.Args().Len() != 1 {
+				return usageErrorf("get takes exactly one key")
+			}
+			s, err := openSession(ctx, flags)
+			if err != nil {
+				return err
+			}
+			key, err := s.resolveKeyArg(ctx, c.Args().First())
+			if err != nil {
+				return err
+			}
+			st, err := s.store(ctx)
+			if err != nil {
+				return err
+			}
+			exists, err := st.Exists(ctx, key)
+			if err != nil {
+				return err
+			}
+			if !exists {
+				return fmt.Errorf("%s does not exist", key)
+			}
 
-	return app
-}
-
-func (cmd *GetCmd) run(_ context.Context, _ *cli.Command) error {
-	log.Info().Msg("running get command")
-	if cmd.flags.JSON {
-		return json.NewEncoder(os.Stdout).Encode(map[string]string{
-			"message": "Hello World!",
-		})
+			dest := filepath.Join(c.String("dir"), path.Base(key))
+			f, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644) //nolint:gosec // the user picks the directory
+			if err != nil {
+				if errors.Is(err, fs.ErrExist) {
+					return fmt.Errorf("%s already exists; remove it or pass -o with another directory", dest)
+				}
+				return err
+			}
+			if err := st.Get(ctx, key, f); err != nil {
+				_ = f.Close()
+				_ = os.Remove(dest)
+				return err
+			}
+			if err := f.Close(); err != nil {
+				return err
+			}
+			_, _ = fmt.Fprintln(c.Root().Writer, dest)
+			return nil
+		},
 	}
-
-	fmt.Println("Hello World!")
-
-	return nil
 }

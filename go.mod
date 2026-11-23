@@ -5,6 +5,7 @@ go 1.27
 require (
 	filippo.io/age v1.3.2
 	github.com/invopop/jsonschema v0.14.0
+	github.com/mattn/go-isatty v0.0.24
 	github.com/minio/minio-go/v7 v7.4.1
 	github.com/rs/zerolog v1.35.1
 	github.com/stretchr/testify v1.12.1
@@ -23,7 +24,6 @@ require (
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
 	github.com/klauspost/crc32 v1.3.0 // indirect
 	github.com/mattn/go-colorable v0.1.15 // indirect
-	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/minio/crc64nvme v1.1.1 // indirect
 	github.com/minio/md5-simd v1.1.2 // indirect
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
