@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/hay-kot/prassets/main/schema.json",
+  "$ref": "#/$defs/Config",
+  "$defs": {
+    "Config": {
+      "properties": {
+        "stores": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Store"
+          },
+          "type": "object",
+          "description": "Named S3-compatible buckets. Several repos can share one store."
+        },
+        "default": {
+          "$ref": "#/$defs/Entry",
+          "description": "Used for any repo that has no entry under repos. Omit it to make unknown repos an error."
+        },
+        "repos": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Entry"
+          },
+          "type": "object",
+          "description": "Keyed by repo id: host/owner/name, from the origin remote."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Entry": {
+      "properties": {
+        "store": {
+          "type": "string",
+          "description": "Name of a store under stores."
+        },
+        "prefix": {
+          "type": "string",
+          "description": "Key prefix for every key of the repo. A template that may use .Host, .Owner and .Repo."
+        },
+        "pr": {
+          "$ref": "#/$defs/TypeDef",
+          "description": "Overrides the key layout of the pr type."
+        },
+        "types": {
+          "additionalProperties": {
+            "$ref": "#/$defs/TypeDef"
+          },
+          "type": "object",
+          "description": "Extra asset types. Wins over .prassets.yaml per type name."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "store"
+      ]
+    },
+    "Store": {
+      "properties": {
+        "endpoint": {
+          "type": "string",
+          "description": "S3 endpoint host, with no scheme."
+        },
+        "bucket": {
+          "type": "string",
+          "description": "Bucket name."
+        },
+        "region": {
+          "type": "string",
+          "description": "Bucket region. Default: auto."
+        },
+        "public_url": {
+          "type": "string",
+          "description": "Base URL that serves the bucket."
+        },
+        "insecure": {
+          "type": "boolean",
+          "description": "Use http instead of https, for a local MinIO."
+        },
+        "access_key": {
+          "type": "string",
+          "description": "Secret template: a literal, or a Go template with env, cmd and file."
+        },
+        "secret_key": {
+          "type": "string",
+          "description": "Secret template: a literal, or a Go template with env, cmd and file."
+        },
+        "session_token": {
+          "type": "string",
+          "description": "Optional secret template for temporary credentials."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "endpoint",
+        "bucket",
+        "public_url",
+        "access_key",
+        "secret_key"
+      ]
+    },
+    "TypeDef": {
+      "properties": {
+        "key": {
+          "type": "string",
+          "description": "Key template. Fields: .Host .Owner .Repo .Branch .Slug .File. Functions: lower, slugify. Must reference .File."
+        },
+        "usage": {
+          "type": "string",
+          "description": "What the type is for, shown by pra types."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "key"
+      ]
+    }
+  },
+  "title": "prassets global config"
+}

@@ -1,18 +1,18 @@
 [tools]
-go = "latest"
-golangci-lint = "latest"
-goreleaser = "latest"
-"github:gotestyourself/gotestsum" = "latest"
+go = "1.27.4"
+golangci-lint = "2.15.0"
+goreleaser = "2.20.2"
+"github:gotestyourself/gotestsum" = "1.13.0"
 
 [env]
-LOG_LEVEL = "debug"
+PRASSETS_LOG_LEVEL = "debug"
 
 [tasks.run]
-description = "Run the main application"
-run = "go run ."
+description = "Run pra"
+run = "go run ./cmd/pra"
 
 [tasks.build]
-description = "Build the binary with goreleaser"
+description = "Build the pra binary with goreleaser"
 run = "goreleaser build --snapshot --clean"
 
 [tasks.test]
@@ -33,11 +33,15 @@ run = "go mod tidy"
 
 [tasks.lint]
 description = "Run golangci-lint"
-run = "golangci-lint run ./..."
+run = "golangci-lint run --build-tags integration ./..."
 
 [tasks.fmt]
 description = "Run golangci-lint fmt"
 run = "golangci-lint fmt"
+
+[tasks.schema]
+description = "Regenerate schema.json and schema.repo.json from the config types"
+run = "go test ./internal/config -run TestSchemaDrift -update"
 
 [tasks.check]
 description = "Run all checks for PRs (tidy, lint, test)"
@@ -47,7 +51,17 @@ run = [
     { task = "test" },
 ]
 
+[tasks."dev:up"]
+description = "Start the RustFS dev stack and create the bucket"
+run = [
+    "docker compose -f dev/compose.yaml up -d --wait",
+    "go run ./dev/setup",
+]
+
+[tasks."dev:down"]
+description = "Stop the RustFS dev stack and drop its data"
+run = "docker compose -f dev/compose.yaml down -v"
+
 [tasks.integration]
-description = "Run Docker-based integration tests against the built binary"
-depends = ["build"]
-run = "docker build -f Dockerfile.test -t prassets-integration-test . && docker run --rm prassets-integration-test"
+description = "Run the integration tests against RustFS (the dev stack when PRASSETS_TEST_S3_ENDPOINT is set, else a throwaway container)"
+run = "go test -tags integration -count=1 ./test/integration/..."

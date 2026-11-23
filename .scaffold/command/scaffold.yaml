@@ -16,11 +16,11 @@ rewrites:
 
 inject:
   - name: "register command"
-    path: main.go
+    path: internal/commands/app.go
     at: "// +scaffold:command:register"
-    mode: after
+    mode: before
     template: |
-      app = commands.New{{ .Scaffold.command_name | toPascalCase }}Cmd(flags).Register(app)
+      new{{ .Scaffold.command_name | toPascalCase }}Cmd(flags),
 
 presets:
   default:

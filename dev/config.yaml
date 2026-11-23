@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=../schema.json
+#
+# Global config for the RustFS dev stack (dev/compose.yaml). Use it with:
+#   PRASSETS_CONFIG=dev/config.yaml go run ./cmd/pra put shot.png
+stores:
+  dev:
+    endpoint: 127.0.0.1:9000
+    bucket: prassets-dev
+    public_url: http://127.0.0.1:9000/prassets-dev
+    insecure: true
+    access_key: prassets-access
+    secret_key: prassets-dev-secret
+
+default:
+  store: dev
+  prefix: "{{ .Host }}/{{ .Owner }}/{{ .Repo }}/"

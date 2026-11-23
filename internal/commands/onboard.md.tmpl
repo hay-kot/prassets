@@ -1,0 +1,79 @@
+# Onboarding a repo to pra
+
+pra uploads files to an S3-compatible bucket and prints stable URLs. Two files configure it: a global config that the user owns, and an optional `.prassets.yaml` that the repo commits.
+
+## This checkout
+
+- Global config: `[[ .ConfigPath ]]` ([[ .ConfigStatus ]])[[ if .ConfigError ]]
+  - Error: [[ .ConfigError ]][[ end ]]
+- Repo: [[ if .Repo ]]`[[ .Repo ]]`[[ else ]]unknown: [[ .RepoError ]][[ end ]]
+- Repo file: [[ if .RepoFile ]]`[[ .RepoFile ]]` ([[ .RepoFileStatus ]])[[ else ]]not used (not a checkout of this repo)[[ end ]][[ if .RepoFileError ]]
+  - Error: [[ .RepoFileError ]][[ end ]]
+- Global entry: [[ if .Entry ]]`[[ .Entry ]]`, store `[[ .Store ]]`, prefix `[[ printf "%q" .Prefix ]]`[[ else if .EntryError ]][[ .EntryError ]][[ else ]]not resolved[[ end ]]
+[[- if .Types ]]
+- Types:
+[[- range .Types ]]
+  - `[[ .Name ]]`: `[[ .Key ]]` (from [[ .Source ]][[ if .NeedSlug ]], needs --slug[[ end ]])
+[[- end ]]
+[[- end ]]
+
+**Next step:** [[ .NextStep ]]
+
+## Where settings live
+
+| | Global config | `.prassets.yaml` |
+|---|---|---|
+| Location | `[[ .ConfigPath ]]` (`pra config path`) | the repo root, committed |
+| Owner | the user, one per machine | the repo, shared with collaborators |
+| Holds | stores (endpoint, bucket, public_url, credentials), the repo to store map (`repos:`, `default:`), the key prefix, optional `pr` and `types` overrides | `pr` and `types` only |
+| Trust | trusted: credential templates can call `env`, `cmd` and `file` | untrusted: key templates get only `lower` and `slugify` |
+| Schema | `pra schema global` | `pra schema repo` |
+
+Types merge in this order, and a later layer wins per type name: the built-in `pr` type (`pr/{{ .Branch }}/{{ .File }}`), then `.prassets.yaml`, then the global entry. The prefix of the global entry always comes first in every key, so a repo file cannot write outside the area that the user gives the repo.
+
+## Onboard a repository
+
+1. Run `pra onboard` (this guide) and `pra config check` to see what is missing.
+2. Global config. If it is missing, the user runs `pra config init` and fills in a store. Credentials are templates such as `'{{ env "AWS_SECRET_ACCESS_KEY" }}'` or `'{{ cmd "op read op://Vault/item/field" }}'`. Never write a secret value into a config file.
+3. Map the repo to a store. A repo without an entry uses `default:` when the config has one. To give the repo its own store or prefix, the user adds an entry to the global config:
+
+   ```yaml
+   repos:
+     [[ if .Repo ]][[ .Repo ]][[ else ]]github.com/owner/name[[ end ]]:
+       store: [[ if .Store ]][[ .Store ]][[ else ]]<store name>[[ end ]]
+       prefix: "github/{{ .Owner }}/{{ .Repo }}/"
+   ```
+
+4. Define the layout. Without a repo file, the repo has only the `pr` type. To add types, commit `.prassets.yaml` at the repo root:
+
+   ```yaml
+   # yaml-language-server: $schema=https://raw.githubusercontent.com/hay-kot/prassets/main/schema.repo.json
+   types:
+     blog:
+       key: "blog/{{ .Slug }}/{{ .File }}"
+       usage: images for one blog post; the slug is the post's file name
+     brand:
+       key: "brand/{{ .File }}"
+       usage: logos
+   ```
+
+   Key templates can use `.Host`, `.Owner`, `.Repo`, `.Branch` (slugified), `.Slug` and `.File`. `.File` must be the last segment. A type that uses `.Slug` needs `--slug` on put.
+5. Check the result with `pra types` and `pra config check`. A failed step in `config check` names the problem.
+
+## Rules for agents
+
+- The global config belongs to the user and holds credentials. Change it only when the user asks. You can change `.prassets.yaml` like any other repo file.
+- `.prassets.yaml` cannot set a store, a prefix or a secret. Strict decoding rejects those keys.
+- Do not pass `--force` unless the user asks. Browsers and CDNs can keep the old copy of a key for up to a year, so upload under a new name instead.
+- `pra rm` asks for confirmation only on a terminal. Without a terminal it deletes at once.
+- Use `--format json` to parse output. stdout holds only results, and logs go to stderr. Exit code 2 means a usage error, so fix the command line. Exit code 1 means the operation failed.
+
+## Daily use
+
+```sh
+pra put shot.png                         # upload to this branch's PR area; prints the URL
+pra --format md put a.png b.png          # Markdown for a PR body
+pra put -t blog -s my-post hero.webp     # another type
+pra md                                   # Markdown for every asset of this branch
+pra ls --all                             # everything under the repo prefix
+```

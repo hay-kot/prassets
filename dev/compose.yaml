@@ -1,0 +1,24 @@
+# Local S3 backend for manual testing and the integration tests.
+#   mise run dev:up     start RustFS and create the bucket
+#   mise run dev:down   stop it and drop the data
+name: prassets-dev
+
+services:
+  rustfs:
+    image: rustfs/rustfs:1.0.6
+    ports:
+      - "127.0.0.1:${PRASSETS_DEV_S3_PORT:-9000}:9000"
+    environment:
+      RUSTFS_ACCESS_KEY: prassets-access
+      RUSTFS_SECRET_KEY: prassets-dev-secret
+      RUSTFS_VOLUMES: /data
+    volumes:
+      - data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/health"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+volumes:
+  data:
