@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 const appName = "prassets"
@@ -21,6 +22,18 @@ func DataDir() (string, error) {
 // CacheDir returns the XDG cache directory for the application.
 func CacheDir() (string, error) {
 	return appDir("XDG_CACHE_HOME", ".cache")
+}
+
+// Expand replaces a leading "~" or "~/" in p with the user's home directory.
+func Expand(p string) (string, error) {
+	if p != "~" && !strings.HasPrefix(p, "~/") {
+		return p, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("resolve home directory: %w", err)
+	}
+	return filepath.Join(home, strings.TrimPrefix(p, "~")), nil
 }
 
 func appDir(envName string, fallbackParts ...string) (string, error) {
