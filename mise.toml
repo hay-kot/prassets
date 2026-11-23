@@ -9,7 +9,7 @@ PRASSETS_LOG_LEVEL = "debug"
 
 [tasks.run]
 description = "Run pra"
-run = "go run ."
+run = "go run ./cmd/pra"
 
 [tasks.build]
 description = "Build the pra binary with goreleaser"

@@ -54,6 +54,7 @@ func NewApp(flags *Flags, info BuildInfo) *cli.Command {
 			newConfigCmd(flags),
 			newVaultCmd(flags),
 			newVersionCmd(flags, info),
+			// +scaffold:command:register
 		},
 	}
 	markUsageErrors(app)

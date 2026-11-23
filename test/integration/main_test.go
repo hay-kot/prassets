@@ -41,7 +41,7 @@ func run(m *testing.M) int {
 	cliBin = os.Getenv("PRA_BIN")
 	if cliBin == "" {
 		cliBin = filepath.Join(tmp, "pra")
-		build := exec.CommandContext(context.Background(), "go", "build", "-o", cliBin, "../..")
+		build := exec.CommandContext(context.Background(), "go", "build", "-o", cliBin, "../../cmd/pra")
 		build.Stdout, build.Stderr = os.Stderr, os.Stderr
 		if err := build.Run(); err != nil {
 			fmt.Fprintln(os.Stderr, "build pra:", err)

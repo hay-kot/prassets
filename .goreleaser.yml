@@ -8,6 +8,7 @@ before:
 builds:
   - id: pra
     binary: pra
+    main: ./cmd/pra
     ldflags:
       - -s -w -X main.version={{ .Version }} -X main.commit={{ .Commit }} -X main.date={{ .Date }}
     env:
